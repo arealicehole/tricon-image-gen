@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 
 const PASSWORD = 'poop';
 const MODELS = {
-  text2img: ['fal-ai/flux/dev', 'fal-ai/flux/schnell', 'fal-ai/stable-diffusion-xl'],
-  img2img: ['fal-ai/flux/dev/image-to-image', 'fal-ai/ip-adapter-faceid', 'fal-ai/controlnet']
+  text2img: [''flux/dev', 'flux/schnell', 'grok-imagine', 'gpt-image-2'],
+  img2img: [''flux/dev/image-to-image', 'grok-imagine', 'gpt-image-2']
 };
 
 export default function ImageGenBeta() {
