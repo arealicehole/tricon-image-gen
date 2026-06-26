@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 
 const PASSWORD = 'poop';
 const MODELS = {
-  text2img: [''flux/dev', 'flux/schnell', 'grok-imagine', 'gpt-image-2'],
-  img2img: [''flux/dev/image-to-image', 'grok-imagine', 'gpt-image-2']
+  text2img: ['flux-kontext-pro', 'flux/schnell', 'grok-imagine', 'gpt-image-2'],
+  img2img: ['flux-kontext-pro', 'grok-imagine', 'gpt-image-2']
 };
 
 export default function ImageGenBeta() {
@@ -48,7 +48,16 @@ export default function ImageGenBeta() {
     if (file) setImageFile(file);
   };
 
-const handleGenerate = async () => {
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('Prompt is required');
       return;
@@ -62,9 +71,9 @@ const handleGenerate = async () => {
     setError('');
 
     try {
-      let imageUrl = undefined;
+      let imageUrl: string | undefined = undefined;
       if (mode === 'img2img' && imageFile) {
-        imageUrl = URL.createObjectURL(imageFile);
+        imageUrl = await fileToDataUrl(imageFile);
       }
 
       const res = await fetch('/api/generate', {
