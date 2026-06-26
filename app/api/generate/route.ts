@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const KIE_API_KEY = process.env.KIE_API_KEY;
-const KIE_BASE = 'https://api.kie.ai';
+const KIE_API_KEY=proces...onst KIE_BASE = 'https://api.kie.ai';
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -15,17 +14,22 @@ export async function POST(request: NextRequest) {
   try {
     const { mode, prompt, model, imageUrl } = await request.json();
 
-    // Step 1: Create generation task (following KIE task pattern)
+    // Use Flux Kontext as reliable default (from actual docs)
+    const isImg2Img = mode === 'img2img';
+    const modelSlug = model || (isImg2Img ? 'flux-kontext-pro' : 'flux-kontext-pro');
+
     const createPayload: any = {
-      model: model || (mode === 'img2img' ? 'flux-2/flex-image-to-image' : 'flux-2/flex-text-to-image'),
       prompt,
+      model: modelSlug,
+      aspectRatio: '1:1',
     };
 
-    if (mode === 'img2img' && imageUrl) {
-      createPayload.image_url = imageUrl;
+    if (isImg2Img && imageUrl) {
+      createPayload.imageUrl = imageUrl;
     }
 
-    const createRes = await fetch(`${KIE_BASE}/v1/images/generations`, {
+    // Correct create endpoint
+    const createRes = await fetch(`${KIE_BASE}/api/v1/flux/kontext/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,41 +38,45 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(createPayload),
     });
 
-    if (!createRes.ok) {
-      const err = await createRes.text();
-      return NextResponse.json({ error: 'Failed to create task', details: err }, { status: 500 });
+    const createData = await createRes.json();
+
+    if (!createRes.ok || createData.code !== 200) {
+      return NextResponse.json(
+        { error: 'Failed to create KIE task', details: createData },
+        { status: 500 }
+      );
     }
 
-    const createData = await createRes.json();
-    const taskId = createData?.taskId || createData?.id || createData?.data?.taskId;
-
+    const taskId = createData.data?.taskId;
     if (!taskId) {
       return NextResponse.json({ error: 'No taskId returned', raw: createData }, { status: 500 });
     }
 
-    // Step 2: Poll for result (max ~30 seconds)
+    // Poll with correct details endpoint
     let resultUrl: string | null = null;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
       await sleep(2000);
 
-      const statusRes = await fetch(`${KIE_BASE}/v1/images/generations/${taskId}`, {
-        headers: { 'Authorization': `Bearer ${KIE_API_KEY}` },
-      });
+      const statusRes = await fetch(
+        `${KIE_BASE}/api/v1/flux/kontext/record-info?taskId=${taskId}`,
+        { headers: { 'Authorization': `Bearer ${KIE_API_KEY}` } }
+      );
 
       if (statusRes.ok) {
         const statusData = await statusRes.json();
-        if (statusData?.status === 'completed' || statusData?.data?.url) {
-          resultUrl = statusData.data?.url || statusData.url;
+
+        if (statusData.code === 200 && statusData.data?.resultImageUrl) {
+          resultUrl = statusData.data.resultImageUrl;
           break;
         }
-        if (statusData?.status === 'failed') {
-          return NextResponse.json({ error: 'Generation failed', raw: statusData }, { status: 500 });
+        if (statusData.data?.status === 3) {
+          return NextResponse.json({ error: 'KIE generation failed', raw: statusData }, { status: 500 });
         }
       }
     }
 
     if (!resultUrl) {
-      return NextResponse.json({ error: 'Generation timed out', taskId }, { status: 504 });
+      return NextResponse.json({ error: 'Timed out waiting for image', taskId }, { status: 504 });
     }
 
     return NextResponse.json({ image_url: resultUrl, taskId });
