@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const KIE_API_KEY=proces...onst KIE_BASE = 'https://api.kie.ai';
+const KIE_API_KEY = process.env.KIE_API_KEY;
+const KIE_BASE = 'https://api.kie.ai';
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -14,7 +15,6 @@ export async function POST(request: NextRequest) {
   try {
     const { mode, prompt, model, imageUrl } = await request.json();
 
-    // Use Flux Kontext as reliable default (from actual docs)
     const isImg2Img = mode === 'img2img';
     const modelSlug = model || (isImg2Img ? 'flux-kontext-pro' : 'flux-kontext-pro');
 
@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
       createPayload.imageUrl = imageUrl;
     }
 
-    // Correct create endpoint
     const createRes = await fetch(`${KIE_BASE}/api/v1/flux/kontext/generate`, {
       method: 'POST',
       headers: {
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No taskId returned', raw: createData }, { status: 500 });
     }
 
-    // Poll with correct details endpoint
     let resultUrl: string | null = null;
     for (let i = 0; i < 20; i++) {
       await sleep(2000);
